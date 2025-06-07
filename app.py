@@ -1,14 +1,15 @@
+# Required modules
 import streamlit as st
 import folium
 from streamlit_folium import st_folium
 from collections import defaultdict
 import heapq
 
-# Set page
+# Setup the Streamlit app page
 st.set_page_config(page_title="India Journey Planner", layout="centered")
 
-# Cities and coordinates
-city_coords = {
+# Dictionary holding city names with their geographical coordinates
+city_locations = {
     "Delhi": (28.6139, 77.2090), "Mumbai": (19.0760, 72.8777), "Chennai": (13.0827, 80.2707),
     "Kolkata": (22.5726, 88.3639), "Bangalore": (12.9716, 77.5946), "Hyderabad": (17.3850, 78.4867),
     "Pune": (18.5204, 73.8567), "Ahmedabad": (23.0225, 72.5714), "Jaipur": (26.9124, 75.7873),
@@ -18,8 +19,8 @@ city_coords = {
     "Thiruvananthapuram": (8.5241, 76.9366), "Guwahati": (26.1445, 91.7362)
 }
 
-# Graph edges with weights (distance)
-edges = [
+# Road connections between cities with distances in kilometers
+routes = [
     ("Delhi", "Jaipur", 280), ("Delhi", "Lucknow", 500), ("Delhi", "Kanpur", 480),
     ("Delhi", "Mumbai", 1400), ("Delhi", "Bhopal", 780), ("Delhi", "Kolkata", 1500),
     ("Mumbai", "Pune", 150), ("Mumbai", "Hyderabad", 700), ("Mumbai", "Ahmedabad", 530),
@@ -32,60 +33,69 @@ edges = [
     ("Guwahati", "Kolkata", 1050), ("Bangalore", "Coimbatore", 360)
 ]
 
-# Build graph
-graph = defaultdict(list)
-for u, v, w in edges:
-    graph[u].append((v, w))
-    graph[v].append((u, w))
+# Construct a graph as an adjacency list
+road_map = defaultdict(list)
+for city1, city2, dist in routes:
+    road_map[city1].append((city2, dist))
+    road_map[city2].append((city1, dist))
 
-# Dijkstra function
-def dijkstra(graph, start, end):
-    heap = [(0, start, [])]
-    visited = set()
-    while heap:
-        dist, node, path = heapq.heappop(heap)
-        if node in visited:
+# Function implementing Dijkstra's shortest path algorithm
+def find_shortest_path(graph, start_city, end_city):
+    priority_q = [(0, start_city, [])]
+    seen = set()
+
+    while priority_q:
+        current_distance, current_city, current_path = heapq.heappop(priority_q)
+
+        if current_city in seen:
             continue
-        path = path + [node]
-        if node == end:
-            return path, dist
-        visited.add(node)
-        for neighbor, weight in graph[node]:
-            if neighbor not in visited:
-                heapq.heappush(heap, (dist + weight, neighbor, path))
+
+        updated_path = current_path + [current_city]
+        if current_city == end_city:
+            return updated_path, current_distance
+
+        seen.add(current_city)
+
+        for neighbor, distance in graph[current_city]:
+            if neighbor not in seen:
+                heapq.heappush(priority_q, (current_distance + distance, neighbor, updated_path))
+
     return None, float('inf')
 
-# Title
+# Streamlit interface
 st.title("🗺️ India Journey Planner")
-st.markdown("Plan your best route between major Indian cities using Dijkstra's Algorithm!")
+st.markdown("Use this tool to plan your travel between cities using the shortest route.")
 
-# UI
-cities = list(city_coords.keys())
-source = st.selectbox("Select Source City", cities)
-destination = st.selectbox("Select Destination City", cities)
+# City selection dropdowns
+all_cities = list(city_locations.keys())
+origin = st.selectbox("Choose your starting city", all_cities)
+destination = st.selectbox("Choose your destination city", all_cities)
 
-# Store button click in session_state
-if 'route_found' not in st.session_state:
-    st.session_state.route_found = False
+# Initialize session state
+if 'route_ready' not in st.session_state:
+    st.session_state.route_ready = False
 
-if st.button("Find Best Route"):
-    if source == destination:
-        st.warning("Source and destination are the same.")
-        st.session_state.route_found = False
+# Route finder logic
+if st.button("Plan Route"):
+    if origin == destination:
+        st.warning("Starting point and destination are the same.")
+        st.session_state.route_ready = False
     else:
-        st.session_state.route_found = True
-        st.session_state.path, st.session_state.total_dist = dijkstra(graph, source, destination)
+        st.session_state.route_ready = True
+        st.session_state.result_path, st.session_state.result_distance = find_shortest_path(road_map, origin, destination)
 
-# Only display when button clicked
-if st.session_state.route_found:
-    path = st.session_state.path
-    total_dist = st.session_state.total_dist
-    st.success(f"Best Route: {' ➝ '.join(path)}")
-    st.info(f"Total Distance: {total_dist} km")
+# Result display
+if st.session_state.route_ready:
+    best_path = st.session_state.result_path
+    total_distance = st.session_state.result_distance
 
-    # Map visualization
-    m = folium.Map(location=[22.0, 80.0], zoom_start=5)
-    for city, coord in city_coords.items():
-        folium.Marker(location=coord, popup=city).add_to(m)
-    folium.PolyLine(locations=[city_coords[city] for city in path], color='red', weight=4).add_to(m)
-    st_folium(m, width=700, height=500)
+    st.success(f"Recommended Route: {' ➝ '.join(best_path)}")
+    st.info(f"Estimated Travel Distance: {total_distance} km")
+
+    # Show route on an interactive map
+    journey_map = folium.Map(location=[22.0, 80.0], zoom_start=5)
+    for city, location in city_locations.items():
+        folium.Marker(location=location, popup=city).add_to(journey_map)
+
+    folium.PolyLine([city_locations[city] for city in best_path], color='red', weight=4).add_to(journey_map)
+    st_folium(journey_map, width=700, height=500)
