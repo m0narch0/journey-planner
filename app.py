@@ -1,75 +1,73 @@
 import streamlit as st
 import networkx as nx
 import matplotlib.pyplot as plt
-import heapq
+import heapq  # we use this for priority queue
 
-# Build city graph
-G = nx.Graph()
-G.add_edge("Bangalore", "Chennai", weight=350)
-G.add_edge("Chennai", "Hyderabad", weight=500)
-G.add_edge("Bangalore", "Hyderabad", weight=600)
-G.add_edge("Hyderabad", "Mumbai", weight=700)
-G.add_edge("Mumbai", "Delhi", weight=1400)
-G.add_edge("Chennai", "Kolkata", weight=1600)
-G.add_edge("Kolkata", "Delhi", weight=1500)
+# Making the graph
+graph = nx.Graph()
 
-def manual_dijkstra(graph, start, end):
-    # graph: networkx graph
-    # start, end: nodes
+# adding cities and distances
+graph.add_edge("Bangalore", "Chennai", weight=350)
+graph.add_edge("Chennai", "Hyderabad", weight=500)
+graph.add_edge("Bangalore", "Hyderabad", weight=600)
+graph.add_edge("Hyderabad", "Mumbai", weight=700)
+graph.add_edge("Mumbai", "Delhi", weight=1400)
+graph.add_edge("Chennai", "Kolkata", weight=1600)
+graph.add_edge("Kolkata", "Delhi", weight=1500)
 
-    # Min-heap for priority queue
-    queue = [(0, start, [])]  # (distance, current_node, path_taken)
-    visited = set()
+# dijkstra implementation manually
+def dijkstra_algo(graph, start, end):
+    q = []
+    heapq.heappush(q, (0, start, []))  # distance, node, path
+    done = set()
 
-    while queue:
-        (dist, current_node, path) = heapq.heappop(queue)
+    while q:
+        dist, node, path = heapq.heappop(q)
 
-        if current_node in visited:
+        if node in done:
             continue
 
-        visited.add(current_node)
-        path = path + [current_node]
+        done.add(node)
+        path = path + [node]
 
-        if current_node == end:
+        if node == end:
             return path, dist
 
-        for neighbor in graph.neighbors(current_node):
-            if neighbor not in visited:
-                weight = graph[current_node][neighbor]['weight']
-                heapq.heappush(queue, (dist + weight, neighbor, path))
+        for neigh in graph.neighbors(node):
+            if neigh not in done:
+                cost = graph[node][neigh]['weight']
+                heapq.heappush(q, (dist + cost, neigh, path))
 
-    return None, float('inf')  # no path found
+    return None, float('inf')  # if no path found
 
-# Streamlit UI
-st.title("🗺️ Smart Journey Planner (Manual Dijkstra)")
+# streamlit app part
+st.title("Simple Journey Planner 🚗")
+st.write("This app helps you find the best route between two cities using Dijkstra algorithm")
 
-st.markdown("Select source and destination to find the shortest route!")
+all_cities = list(graph.nodes)
+src = st.selectbox("Choose starting city", all_cities)
+dest = st.selectbox("Choose destination city", all_cities)
 
-cities = list(G.nodes)
-source = st.selectbox("Select Source City", cities)
-destination = st.selectbox("Select Destination City", cities)
-
-if st.button("Find Best Route"):
-    if source == destination:
-        st.warning("Source and destination are the same.")
+if st.button("Find route"):
+    if src == dest:
+        st.warning("Start and end cannot be same!")
     else:
-        result = manual_dijkstra(G, source, destination)
+        result = dijkstra_algo(graph, src, dest)
         if result[0] is None:
-            st.error("No path exists between selected cities.")
+            st.error("Sorry, no route found")
         else:
-            path, distance = result
-            st.success(f"Best Route: {' ➝ '.join(path)}")
-            st.info(f"Total Distance: {distance} km")
+            path, total = result
+            st.success("Route found!")
+            st.write(" ➝ ".join(path))
+            st.write(f"Distance: {total} km")
 
-            # Visualize graph
+            # draw map
             fig, ax = plt.subplots()
-            pos = nx.spring_layout(G, seed=42)
-            nx.draw(G, pos, with_labels=True, node_color='skyblue', node_size=1500, ax=ax)
-            edge_labels = nx.get_edge_attributes(G, 'weight')
-            nx.draw_networkx_edge_labels(G, pos, edge_labels=edge_labels, ax=ax)
+            pos = nx.spring_layout(graph, seed=1)
+            nx.draw(graph, pos, with_labels=True, node_size=1200, node_color="lightblue", ax=ax)
+            nx.draw_networkx_edge_labels(graph, pos, edge_labels=nx.get_edge_attributes(graph, 'weight'), ax=ax)
 
-            # Highlight the path
-            path_edges = list(zip(path, path[1:]))
-            nx.draw_networkx_edges(G, pos, edgelist=path_edges, edge_color='red', width=3, ax=ax)
+            red_edges = list(zip(path, path[1:]))
+            nx.draw_networkx_edges(graph, pos, edgelist=red_edges, edge_color='red', width=3, ax=ax)
 
             st.pyplot(fig)
