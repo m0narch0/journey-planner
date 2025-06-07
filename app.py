@@ -1,6 +1,7 @@
 import streamlit as st
 import networkx as nx
 import matplotlib.pyplot as plt
+import heapq
 
 # Build city graph
 G = nx.Graph()
@@ -12,8 +13,36 @@ G.add_edge("Mumbai", "Delhi", weight=1400)
 G.add_edge("Chennai", "Kolkata", weight=1600)
 G.add_edge("Kolkata", "Delhi", weight=1500)
 
+def manual_dijkstra(graph, start, end):
+    # graph: networkx graph
+    # start, end: nodes
+
+    # Min-heap for priority queue
+    queue = [(0, start, [])]  # (distance, current_node, path_taken)
+    visited = set()
+
+    while queue:
+        (dist, current_node, path) = heapq.heappop(queue)
+
+        if current_node in visited:
+            continue
+
+        visited.add(current_node)
+        path = path + [current_node]
+
+        if current_node == end:
+            return path, dist
+
+        for neighbor in graph.neighbors(current_node):
+            if neighbor not in visited:
+                weight = graph[current_node][neighbor]['weight']
+                heapq.heappush(queue, (dist + weight, neighbor, path))
+
+    return None, float('inf')  # no path found
+
 # Streamlit UI
-st.title("🗺️ Smart Journey Planner")
+st.title("🗺️ Smart Journey Planner (Manual Dijkstra)")
+
 st.markdown("Select source and destination to find the shortest route!")
 
 cities = list(G.nodes)
@@ -24,9 +53,11 @@ if st.button("Find Best Route"):
     if source == destination:
         st.warning("Source and destination are the same.")
     else:
-        try:
-            path = nx.dijkstra_path(G, source, destination, weight='weight')
-            distance = nx.dijkstra_path_length(G, source, destination, weight='weight')
+        result = manual_dijkstra(G, source, destination)
+        if result[0] is None:
+            st.error("No path exists between selected cities.")
+        else:
+            path, distance = result
             st.success(f"Best Route: {' ➝ '.join(path)}")
             st.info(f"Total Distance: {distance} km")
 
@@ -42,6 +73,3 @@ if st.button("Find Best Route"):
             nx.draw_networkx_edges(G, pos, edgelist=path_edges, edge_color='red', width=3, ax=ax)
 
             st.pyplot(fig)
-
-        except nx.NetworkXNoPath:
-            st.error("No path exists between selected cities.")
